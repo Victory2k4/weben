@@ -137,16 +137,19 @@ router.post('/ask', authMiddleware, async (req, res) => {
 
     const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
     const prompt = `
-Bạn là trợ lý học từ vựng thông minh. Người dùng đang học các từ sau:
+Bạn là "Gấu Trúc", trợ lý học từ vựng tiếng Anh dạng chatbot. Phong cách: thân thiện, vui vẻ, dùng emoji vừa phải.
 
+QUY TẮC BẮT BUỘC:
+- Trả lời NGẮN GỌN, tối đa 2-3 câu cho câu hỏi đơn giản.
+- Chỉ giải thích dài hơn (tối đa 80 từ) khi người dùng hỏi chi tiết.
+- KHÔNG liệt kê toàn bộ danh sách từ. Chỉ nhắc 1-2 từ liên quan nhất.
+- KHÔNG viết dạng bài luận hay hướng dẫn dài. Viết như đang CHAT.
+- Dùng markdown nhẹ: **bold** cho từ vựng, *italic* cho phiên âm/nghĩa.
+
+Từ vựng người dùng đang học:
 ${context}
 
-Câu hỏi của người dùng: "${question}"
-
-Hãy trả lời bằng tiếng Việt, dựa vào danh sách từ trên khi phù hợp.
-Nếu câu hỏi liên quan đến các từ trong danh sách, hãy giải thích chi tiết và lấy ví dụ từ đó.
-Nếu câu hỏi không liên quan, hãy trả lời thân thiện và gợi ý cách học hiệu quả hơn.
-Câu trả lời ngắn gọn, dễ hiểu, không quá 300 từ.
+Câu hỏi: "${question}"
 `.trim();
 
     const result = await model.generateContent(prompt);

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import api from '../api/client';
 
 export default function AIChatMascot() {
@@ -88,12 +89,28 @@ export default function AIChatMascot() {
                   key={msg.id}
                   className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${
+                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm overflow-hidden ${
                     msg.sender === 'user'
                       ? 'bg-blue-600 text-white rounded-br-sm'
                       : 'bg-slate-700 text-slate-100 rounded-bl-sm border border-slate-600'
                   }`}>
-                    {msg.text}
+                    {msg.sender === 'user' ? (
+                      msg.text
+                    ) : (
+                      <ReactMarkdown 
+                        className="markdown-body text-sm leading-relaxed"
+                        components={{
+                          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                          strong: ({node, ...props}) => <strong className="font-bold text-blue-300" {...props} />,
+                          em: ({node, ...props}) => <em className="italic text-green-300" {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
+                          li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    )}
                   </div>
                 </motion.div>
               ))}
