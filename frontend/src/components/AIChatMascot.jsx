@@ -97,19 +97,20 @@ export default function AIChatMascot() {
                     {msg.sender === 'user' ? (
                       msg.text
                     ) : (
-                      <ReactMarkdown 
-                        className="markdown-body text-sm leading-relaxed"
-                        components={{
-                          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                          strong: ({node, ...props}) => <strong className="font-bold text-blue-300" {...props} />,
-                          em: ({node, ...props}) => <em className="italic text-green-300" {...props} />,
-                          ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
-                          ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
-                          li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
+                      <div className="markdown-body text-sm leading-relaxed">
+                        <ReactMarkdown
+                          components={{
+                            p: (props) => <p className="mb-2 last:mb-0" {...props} />,
+                            strong: (props) => <strong className="font-bold text-blue-300" {...props} />,
+                            em: (props) => <em className="italic text-green-300" {...props} />,
+                            ul: (props) => <ul className="list-disc ml-4 mb-2" {...props} />,
+                            ol: (props) => <ol className="list-decimal ml-4 mb-2" {...props} />,
+                            li: (props) => <li className="mb-1" {...props} />,
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
                     )}
                   </div>
                 </motion.div>
