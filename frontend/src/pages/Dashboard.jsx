@@ -12,7 +12,7 @@ const COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef
 export default function Dashboard() {
   const { user, decks, stats, fetchDecks, fetchStats, createDeck, deleteDeck } = useStore()
   const [showForm, setShowForm] = useState(false)
-  const [newDeck, setNewDeck] = useState({ title: '', description: '', color: '#6366f1' })
+  const [newDeck, setNewDeck] = useState({ title: '', description: '', topic: '', rawText: '', mode: 'manual', color: '#6366f1' })
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -22,21 +22,27 @@ export default function Dashboard() {
 
   const handleCreate = async e => {
     e.preventDefault()
-    if (!newDeck.isAi && !newDeck.title.trim()) return toast.error('Nhập tên bộ từ!')
-    if (newDeck.isAi && !newDeck.topic?.trim()) return toast.error('Nhập chủ đề!')
+    if (newDeck.mode !== 'ai' && !newDeck.title.trim()) return toast.error('Nhập tên bộ từ!')
+    if (newDeck.mode === 'ai' && !newDeck.topic?.trim()) return toast.error('Nhập chủ đề!')
+    if (newDeck.mode === 'paste' && !newDeck.rawText?.trim()) return toast.error('Dán nội dung từ vựng!')
     
     setNewDeck(f => ({ ...f, loading: true }))
     try {
-      if (newDeck.isAi) {
-        const { data } = await api.post('/ai/generate-deck', { topic: newDeck.topic, count: 15 })
-        fetchDecks() // Refresh list since useStore createDeck is not used directly
+      if (newDeck.mode === 'ai') {
+        await api.post('/ai/generate-deck', { topic: newDeck.topic, count: 15 })
+        fetchDecks()
         toast.success(`Đã tạo bộ từ "${newDeck.topic}" bằng AI! 🎉`)
+      } else if (newDeck.mode === 'paste') {
+        const { data } = await api.post('/decks/import', { title: newDeck.title, rawText: newDeck.rawText, color: newDeck.color })
+        fetchDecks()
+        fetchStats()
+        toast.success(`Đã nhập thành công ${data.count} từ! 🎉`)
       } else {
         await createDeck({ title: newDeck.title, description: newDeck.description, color: newDeck.color })
         toast.success('Tạo bộ từ thành công! 🎉')
       }
       setShowForm(false)
-      setNewDeck({ title: '', description: '', topic: '', isAi: false, color: '#6366f1', loading: false })
+      setNewDeck({ title: '', description: '', topic: '', rawText: '', mode: 'manual', color: '#6366f1', loading: false })
     } catch (err) { 
       toast.error(err.response?.data?.error || 'Tạo thất bại, thử lại!') 
       setNewDeck(f => ({ ...f, loading: false }))
@@ -111,19 +117,16 @@ export default function Dashboard() {
         </div>
 
         {/* Create form modal */}
-        <AnimatePresence>
-          {showForm && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-              onClick={() => setShowForm(false)}
+        {showForm && (
+          <div
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowForm(false)}
+          >
+            <div
+              className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              onClick={e => e.stopPropagation()}
             >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                className="card-glass p-6 w-full max-w-md"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-5">
+              <div className="flex justify-between items-center mb-5">
                   <h3 className="text-lg font-semibold">Tạo bộ từ mới</h3>
                   <button onClick={() => setShowForm(false)} className="text-white/50 hover:text-white">✕</button>
                 </div>
@@ -131,17 +134,24 @@ export default function Dashboard() {
                 {/* Tabs */}
                 <div className="flex gap-2 mb-4 p-1 bg-white/5 rounded-lg">
                   <button 
-                    className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${!newDeck.isAi ? 'bg-indigo-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
-                    onClick={() => setNewDeck(f => ({ ...f, isAi: false }))}
+                    type="button"
+                    className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${newDeck.mode === 'manual' ? 'bg-indigo-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
+                    onClick={() => setNewDeck(f => ({ ...f, mode: 'manual' }))}
                   >Thủ công</button>
                   <button 
-                    className={`flex-1 py-1.5 text-sm rounded-md transition-colors flex items-center justify-center gap-1 ${newDeck.isAi ? 'bg-purple-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
-                    onClick={() => setNewDeck(f => ({ ...f, isAi: true }))}
+                    type="button"
+                    className={`flex-1 py-1.5 text-sm rounded-md transition-colors flex items-center justify-center gap-1 ${newDeck.mode === 'paste' ? 'bg-blue-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
+                    onClick={() => setNewDeck(f => ({ ...f, mode: 'paste' }))}
+                  >📋 Dán text</button>
+                  <button 
+                    type="button"
+                    className={`flex-1 py-1.5 text-sm rounded-md transition-colors flex items-center justify-center gap-1 ${newDeck.mode === 'ai' ? 'bg-purple-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
+                    onClick={() => setNewDeck(f => ({ ...f, mode: 'ai' }))}
                   >✨ Bằng AI</button>
                 </div>
 
                 <form onSubmit={handleCreate} className="space-y-4">
-                  {newDeck.isAi ? (
+                  {newDeck.mode === 'ai' ? (
                     <>
                       <div>
                         <label className="block text-sm text-white/60 mb-1.5">Chủ đề (AI sẽ tự tạo 15 từ) *</label>
@@ -152,11 +162,26 @@ export default function Dashboard() {
                         🤖 AI sẽ tự động phân tích chủ đề và tạo ra danh sách từ vựng kèm phiên âm, định nghĩa và câu ví dụ. Quá trình này mất khoảng 5-10 giây.
                       </div>
                     </>
+                  ) : newDeck.mode === 'paste' ? (
+                    <>
+                      <div>
+                        <label className="block text-sm text-white/60 mb-1.5">Tên bộ từ *</label>
+                        <input className="input-field" placeholder="VD: IELTS Vocabulary" required
+                          value={newDeck.title} onChange={e => setNewDeck(f => ({ ...f, title: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-white/60 mb-1.5">Dán danh sách từ (hỗ trợ mọi format) *</label>
+                        <textarea className="input-field !h-32 resize-none text-sm" required
+                          placeholder="apple - quả táo&#10;banana - quả chuối"
+                          value={newDeck.rawText} onChange={e => setNewDeck(f => ({ ...f, rawText: e.target.value }))} />
+                        <p className="text-xs text-white/30 mt-1">Hệ thống sẽ tự nhận dạng format hoặc dùng AI để parse.</p>
+                      </div>
+                    </>
                   ) : (
                     <>
                       <div>
                         <label className="block text-sm text-white/60 mb-1.5">Tên bộ từ *</label>
-                        <input className="input-field" placeholder="VD: TOEIC 600 từ" required={!newDeck.isAi}
+                        <input className="input-field" placeholder="VD: TOEIC 600 từ" required
                           value={newDeck.title} onChange={e => setNewDeck(f => ({ ...f, title: e.target.value }))} />
                       </div>
                       <div>
@@ -181,14 +206,13 @@ export default function Dashboard() {
                   <div className="flex gap-3 mt-2">
                     <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1">Hủy</button>
                     <button type="submit" disabled={newDeck.loading} className={`btn-primary flex-1 ${newDeck.loading ? 'opacity-70' : ''}`}>
-                      {newDeck.loading ? 'Đang tạo...' : (newDeck.isAi ? '✨ Tạo tự động' : 'Tạo bộ từ')}
+                      {newDeck.loading ? 'Đang tạo...' : (newDeck.mode === 'ai' ? '✨ Tạo tự động' : (newDeck.mode === 'paste' ? '📋 Nhập từ' : 'Tạo bộ từ'))}
                     </button>
                   </div>
                 </form>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </div>
+        )}
 
         {/* Deck grid */}
         {decks.length === 0 ? (

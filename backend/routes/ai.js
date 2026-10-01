@@ -160,4 +160,61 @@ Câu hỏi: "${question}"
   }
 });
 
+// POST /api/ai/parse-text
+// Parse raw pasted text (bất kỳ format nào) thành danh sách cards có cấu trúc
+router.post('/parse-text', authMiddleware, async (req, res) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Vui lòng dán nội dung từ vựng' });
+  if (text.length > 10000) return res.status(400).json({ error: 'Nội dung quá dài (tối đa 10.000 ký tự)' });
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `
+You are a vocabulary parser. The user will paste text containing English vocabulary words.
+The text can be in ANY format: tab-separated, comma-separated, dash-separated, numbered list, free text, etc.
+
+Parse the text and extract ALL vocabulary entries. For each entry, extract:
+- term: the English word or phrase
+- phonetic: IPA pronunciation if provided, otherwise leave empty string ""
+- part_of_speech: if provided (noun, verb, adj, etc.), otherwise leave empty string ""
+- definition: Vietnamese definition if provided, otherwise leave empty string ""
+- example_sentence: example sentence if provided, otherwise leave empty string ""
+
+Return ONLY a valid JSON array (no markdown, no explanation):
+[
+  {
+    "term": "word",
+    "phonetic": "/pronunciation/",
+    "part_of_speech": "noun",
+    "definition": "Vietnamese definition",
+    "example_sentence": "Example sentence"
+  }
+]
+
+Rules:
+- Extract ALL words/phrases from the input, don't skip any
+- If a field is not in the input, use empty string ""
+- Do NOT invent or generate content that is not in the input
+- If only English words are provided without definitions, set definition to ""
+- Keep the original order of words
+
+Input text:
+${text}
+`.trim();
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('Không thể phân tích nội dung');
+    const cards = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(cards) || cards.length === 0) throw new Error('Không tìm thấy từ vựng nào');
+
+    res.json({ cards, count: cards.length });
+  } catch (err) {
+    console.error('AI parse error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

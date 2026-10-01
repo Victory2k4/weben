@@ -216,7 +216,7 @@ function SpeakerIcon() {
 }
 
 // ── Component chính ───────────────────────────────────────────────────
-export default function Flashcard3D({ card, flipped, onFlip, onSpeakUK, onSpeakUS }) {
+export default function Flashcard3D({ card, flipped, onFlip, onSpeakUK, onSpeakUS, onSpeakSentence }) {
   const guide = useMemo(() => termToViet(card.term), [card.term])
 
   return (
@@ -276,7 +276,29 @@ export default function Flashcard3D({ card, flipped, onFlip, onSpeakUK, onSpeakU
             <p className="text-3xl font-bold text-indigo-300 leading-snug">{card.definition}</p>
             {card.example_sentence && (
               <div className="mt-4 p-4 bg-white/5 rounded-xl border border-white/5">
-                <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Ví dụ</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-white/40 text-xs uppercase tracking-wider">Ví dụ</p>
+                  {onSpeakSentence && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={e => { e.stopPropagation(); onSpeakSentence('uk') }}
+                        className="group flex items-center gap-1 px-2 py-1 bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-400/40 rounded-full transition-all active:scale-90"
+                        title="Nghe câu ví dụ - giọng Anh"
+                      >
+                        <span className="text-white/50 group-hover:text-indigo-300 transition-colors"><SpeakerIcon /></span>
+                        <span className="text-[10px] text-white/40 group-hover:text-indigo-300 font-semibold transition-colors">UK</span>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); onSpeakSentence('us') }}
+                        className="group flex items-center gap-1 px-2 py-1 bg-white/5 hover:bg-violet-500/20 border border-white/10 hover:border-violet-400/40 rounded-full transition-all active:scale-90"
+                        title="Nghe câu ví dụ - giọng Mỹ"
+                      >
+                        <span className="text-white/50 group-hover:text-violet-300 transition-colors"><SpeakerIcon /></span>
+                        <span className="text-[10px] text-white/40 group-hover:text-violet-300 font-semibold transition-colors">US</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <p className="text-white/70 italic">"{card.example_sentence}"</p>
               </div>
             )}

@@ -6,6 +6,7 @@ import api from '../api/client'
 import useStore from '../store/useStore'
 import Flashcard3D from '../components/Flashcard3D'
 import StudySummary from '../components/StudySummary'
+import { getCachedAudio, setCachedAudio } from '../utils/audioCache'
 
 const RATING_LABELS = ['again', 'hard', 'easy']
 
@@ -109,9 +110,40 @@ export default function Study() {
     return () => window.removeEventListener('keydown', handler)
   }, [flipped, index, cards])
 
-  // Fetch & cache UK/US audio URLs from Free Dictionary API
+  // ── Helpers: dừng mọi audio đang phát ──────────────────────────────
+  const stopAll = () => {
+    if (currentAudio.current) {
+      currentAudio.current.pause()
+      currentAudio.current.currentTime = 0
+    }
+    window.speechSynthesis.cancel()
+  }
+
+  // ── Phát bằng Web Speech API (dùng cho câu dài & fallback) ────────
+  const speakWithSynthesis = (text, accent = 'us', slow = false) => {
+    if (!('speechSynthesis' in window)) return
+    stopAll()
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = accent === 'uk' ? 'en-GB' : 'en-US'
+    u.rate = slow ? 0.35 : 0.85
+    window.speechSynthesis.speak(u)
+  }
+
+  // ── Fetch & cache UK/US audio URLs từ Free Dictionary API ─────────
+  // Ưu tiên: memory cache → IndexedDB (vĩnh viễn) → fetch API
   const fetchAudioUrls = async (word) => {
+    // 1. Memory cache (phiên hiện tại)
     if (audioCache.current[word]) return audioCache.current[word]
+
+    // 2. IndexedDB cache (tồn tại vĩnh viễn qua các phiên)
+    const cached = await getCachedAudio(word)
+    if (cached && (cached.uk || cached.us)) {
+      const result = { uk: cached.uk, us: cached.us }
+      audioCache.current[word] = result
+      return result
+    }
+
+    // 3. Fetch từ Free Dictionary API
     try {
       const res = await fetch(
         `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.trim())}`
@@ -120,16 +152,18 @@ export default function Study() {
       const data = await res.json()
       const phonetics = data[0]?.phonetics || []
 
-      // Try to find accent-specific audio
       let uk = phonetics.find(p => p.audio && p.audio.includes('-uk'))?.audio || ''
       let us = phonetics.find(p => p.audio && p.audio.includes('-us'))?.audio || ''
-      // Fallback: first available audio for both
       const any = phonetics.find(p => p.audio)?.audio || ''
       if (!uk) uk = any
       if (!us) us = any
 
       const result = { uk, us }
       audioCache.current[word] = result
+
+      // Lưu vào IndexedDB để lần sau không cần fetch lại
+      if (uk || us) setCachedAudio(word, result)
+
       return result
     } catch {
       audioCache.current[word] = { uk: '', us: '' }
@@ -137,21 +171,15 @@ export default function Study() {
     }
   }
 
+  // ── Phát âm từ đơn: ưu tiên Dictionary API, fallback SpeechSynthesis
   const playAudio = async (word, accent) => {
     const now = Date.now()
     const DOUBLE_CLICK_MS = 350
-
-    // Detect double-click: lần nhấn thứ 2 trong vòng 350ms
     const isDoubleClick = (now - lastClickTime.current[accent]) < DOUBLE_CLICK_MS
     lastClickTime.current[accent] = now
     const slow = isDoubleClick
 
-    // Dừng audio đang phát
-    if (currentAudio.current) {
-      currentAudio.current.pause()
-      currentAudio.current.currentTime = 0
-    }
-    window.speechSynthesis.cancel()
+    stopAll()
 
     const urls = await fetchAudioUrls(word)
     const url = accent === 'uk' ? urls.uk : urls.us
@@ -160,20 +188,16 @@ export default function Study() {
       const audio = new Audio(url)
       audio.playbackRate = slow ? 0.65 : 1.0
       currentAudio.current = audio
-      audio.play().catch(() => {
-        // Fallback về SpeechSynthesis nếu audio lỗi
-        const u = new SpeechSynthesisUtterance(word)
-        u.lang = accent === 'uk' ? 'en-GB' : 'en-US'
-        u.rate = slow ? 0.35 : 0.85
-        window.speechSynthesis.speak(u)
-      })
+      audio.play().catch(() => speakWithSynthesis(word, accent, slow))
     } else {
-      // Fallback: SpeechSynthesis
-      const u = new SpeechSynthesisUtterance(word)
-      u.lang = accent === 'uk' ? 'en-GB' : 'en-US'
-      u.rate = slow ? 0.35 : 0.85
-      window.speechSynthesis.speak(u)
+      speakWithSynthesis(word, accent, slow)
     }
+  }
+
+  // ── Phát âm câu ví dụ: luôn dùng SpeechSynthesis (tức thì, miễn phí)
+  const speakSentence = (sentence, accent = 'us') => {
+    if (!sentence) return
+    speakWithSynthesis(sentence, accent, false)
   }
 
   const rate = async (rating) => {
@@ -311,6 +335,7 @@ export default function Study() {
               onFlip={() => setFlipped(f => !f)}
               onSpeakUK={() => playAudio(card.term, 'uk')}
               onSpeakUS={() => playAudio(card.term, 'us')}
+              onSpeakSentence={(accent) => speakSentence(card.example_sentence, accent)}
             />
           </motion.div>
         </AnimatePresence>

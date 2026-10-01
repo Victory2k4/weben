@@ -1,5 +1,6 @@
 const express = require('express');
-const { query } = require('../db/setup');
+const { query, pool } = require('../db/setup');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
@@ -40,6 +41,158 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/decks/import
+router.post('/import', async (req, res) => {
+  const { title, rawText, color = '#6366f1' } = req.body;
+  if (!title || !rawText || !rawText.trim()) return res.status(400).json({ error: 'Thiếu tên bộ thẻ hoặc nội dung' });
+
+  try {
+    let cards = [];
+    
+    // 1. Local parse
+    const lines = rawText.trim().split('\n').filter(l => l.trim());
+    if (lines.length >= 2 && lines[0].includes('\t')) {
+      for (const line of lines) {
+        const cols = line.split('\t').map(c => c.trim());
+        if (cols.length >= 2 && cols[0]) {
+          cards.push({ term: cols[0], phonetic: cols[1] || '', part_of_speech: cols[2] || '', definition: cols[3] || cols[1] || '', example_sentence: cols[4] || '' });
+        }
+      }
+    }
+    if (cards.length < 2) {
+      const sepRegex = /^(.+?)\s*[-–|]\s*(.+)$/;
+      const allMatch = lines.every(l => sepRegex.test(l.replace(/^\d+[\.\)]\s*/, '')));
+      if (allMatch) {
+        cards = [];
+        for (const line of lines) {
+          const m = line.replace(/^\d+[\.\)]\s*/, '').match(sepRegex);
+          if (m) cards.push({ term: m[1].trim(), phonetic: '', part_of_speech: '', definition: m[2].trim(), example_sentence: '' });
+        }
+      }
+    }
+
+    // 2. AI parse fallback
+    if (cards.length < 2) {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ 
+        model: 'gemini-3.6-flash',
+        generationConfig: { responseMimeType: "application/json" }
+      });
+      const prompt = `Parse this vocab list into a JSON array of objects with exact keys: term, phonetic, part_of_speech, definition, example_sentence. If missing, use "". Keep original order. Do not invent details. Raw text: \n${rawText}`.trim();
+      try {
+        const result = await model.generateContent(prompt);
+        cards = JSON.parse(result.response.text());
+      } catch (e) {
+        console.error("AI Parse Error:", e);
+        if (e.status === 503) return res.status(503).json({ error: 'Server AI Google đang quá tải (503). Vui lòng thử lại sau!' });
+        return res.status(500).json({ error: 'Lỗi kết nối AI: ' + e.message });
+      }
+    }
+    if (cards.length === 0) return res.status(400).json({ error: 'Không thể phân tích từ vựng từ nội dung bạn dán!' });
+
+    // 3. Database Insert
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const deckRes = await client.query(
+        'INSERT INTO decks (user_id, title, description, color) VALUES ($1, $2, $3, $4) RETURNING id',
+        [req.userId, title, `Bộ thẻ dán nhanh (${cards.length} từ)`, color]
+      );
+      const deckId = deckRes.rows[0].id;
+
+      for (const c of cards) {
+        if (!c.term) continue;
+        await client.query(
+          'INSERT INTO cards (deck_id, term, phonetic, part_of_speech, definition, example_sentence) VALUES ($1, $2, $3, $4, $5, $6)',
+          [deckId, c.term, c.phonetic || '', c.part_of_speech || '', c.definition || '', c.example_sentence || '']
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.status(201).json({ success: true, count: cards.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// POST /api/decks/:id/import - Thêm nhiều từ vào bộ có sẵn
+router.post('/:id/import', authMiddleware, async (req, res) => {
+  const { rawText } = req.body;
+  const deckId = req.params.id;
+  if (!rawText || !rawText.trim()) return res.status(400).json({ error: 'Thiếu nội dung' });
+
+  try {
+    // Check if deck exists and belongs to user
+    const deckRes = await query('SELECT id FROM decks WHERE id = $1 AND user_id = $2', [deckId, req.userId]);
+    if (deckRes.rowCount === 0) return res.status(404).json({ error: 'Không tìm thấy bộ từ' });
+
+    let cards = [];
+    const lines = rawText.trim().split('\n').filter(l => l.trim());
+    if (lines.length >= 2 && lines[0].includes('\t')) {
+      for (const line of lines) {
+        const cols = line.split('\t').map(c => c.trim());
+        if (cols.length >= 2 && cols[0]) {
+          cards.push({ term: cols[0], phonetic: cols[1] || '', part_of_speech: cols[2] || '', definition: cols[3] || cols[1] || '', example_sentence: cols[4] || '' });
+        }
+      }
+    }
+    if (cards.length < 2) {
+      const sepRegex = /^(.+?)\s*[-–|]\s*(.+)$/;
+      const allMatch = lines.every(l => sepRegex.test(l.replace(/^\d+[\.\)]\s*/, '')));
+      if (allMatch) {
+        cards = [];
+        for (const line of lines) {
+          const m = line.replace(/^\d+[\.\)]\s*/, '').match(sepRegex);
+          if (m) cards.push({ term: m[1].trim(), phonetic: '', part_of_speech: '', definition: m[2].trim(), example_sentence: '' });
+        }
+      }
+    }
+    if (cards.length < 2) {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ 
+        model: 'gemini-3.6-flash',
+        generationConfig: { responseMimeType: "application/json" }
+      });
+      const prompt = `Parse this vocab list into a JSON array of objects with exact keys: term, phonetic, part_of_speech, definition, example_sentence. If missing, use "". Keep original order. Do not invent details. Raw text: \n${rawText}`.trim();
+      try {
+        const result = await model.generateContent(prompt);
+        cards = JSON.parse(result.response.text());
+      } catch (e) {
+        console.error("AI Parse Error:", e);
+        if (e.status === 503) return res.status(503).json({ error: 'Server AI Google đang quá tải (503). Vui lòng thử lại sau!' });
+        return res.status(500).json({ error: 'Lỗi kết nối AI: ' + e.message });
+      }
+    }
+    if (cards.length === 0) return res.status(400).json({ error: 'Không thể phân tích từ vựng từ nội dung bạn dán!' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const c of cards) {
+        await client.query(
+          'INSERT INTO cards (deck_id, term, phonetic, part_of_speech, definition, example_sentence) VALUES ($1, $2, $3, $4, $5, $6)',
+          [deckId, c.term, c.phonetic || '', c.part_of_speech || '', c.definition || '', c.example_sentence || '']
+        );
+      }
+      await client.query('COMMIT');
+      res.status(201).json({ success: true, count: cards.length });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // GET /api/decks/:id – get single deck with all cards
 router.get('/:id', async (req, res) => {
