@@ -93,6 +93,15 @@ export default function Study() {
     load()
   }, [id])
 
+  // ── Preload audio ngầm khi chuyển sang thẻ mới ───────────────────
+  // Tải sẵn URL audio từ Dictionary API vào cache để khi user bấm loa → phát ngay
+  useEffect(() => {
+    const card = cards[index]
+    if (card?.term) {
+      fetchAudioUrls(card.term).catch(() => {})
+    }
+  }, [index, cards])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
@@ -171,7 +180,8 @@ export default function Study() {
     }
   }
 
-  // ── Phát âm từ đơn: ưu tiên Dictionary API, fallback SpeechSynthesis
+  // ── Phát âm từ đơn: phát tức thì bằng SpeechSynthesis, đồng thời
+  //    tải audio Dictionary API ngầm. Lần sau có cache → dùng audio file.
   const playAudio = async (word, accent) => {
     const now = Date.now()
     const DOUBLE_CLICK_MS = 350
@@ -181,17 +191,24 @@ export default function Study() {
 
     stopAll()
 
-    const urls = await fetchAudioUrls(word)
-    const url = accent === 'uk' ? urls.uk : urls.us
-
-    if (url) {
-      const audio = new Audio(url)
-      audio.playbackRate = slow ? 0.65 : 1.0
-      currentAudio.current = audio
-      audio.play().catch(() => speakWithSynthesis(word, accent, slow))
-    } else {
-      speakWithSynthesis(word, accent, slow)
+    // 1. Kiểm tra cache trước (memory → IndexedDB) — nếu có thì phát ngay, không delay
+    const memoryCached = audioCache.current[word]
+    if (memoryCached) {
+      const url = accent === 'uk' ? memoryCached.uk : memoryCached.us
+      if (url) {
+        const audio = new Audio(url)
+        audio.playbackRate = slow ? 0.65 : 1.0
+        currentAudio.current = audio
+        audio.play().catch(() => speakWithSynthesis(word, accent, slow))
+        return
+      }
     }
+
+    // 2. Không có trong memory cache → phát tức thì bằng SpeechSynthesis (0ms delay)
+    speakWithSynthesis(word, accent, slow)
+
+    // 3. Đồng thời tải audio từ Dictionary API ngầm để cache cho lần sau
+    fetchAudioUrls(word).catch(() => {})
   }
 
   // ── Phát âm câu ví dụ: luôn dùng SpeechSynthesis (tức thì, miễn phí)
