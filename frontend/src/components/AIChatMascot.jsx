@@ -60,7 +60,7 @@ export default function AIChatMascot() {
             {/* Header */}
             <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="text-3xl bg-slate-700 p-1 rounded-full w-10 h-10 flex items-center justify-center">🐼</div>
+                <img src="/panda.png" alt="Panda" className="w-10 h-10 rounded-full object-cover border border-slate-600 shadow" />
                 <div>
                   <h3 className="text-white font-bold text-sm">Gấu Trúc Trợ Lý</h3>
                   <p className="text-green-400 text-xs flex items-center gap-1">
@@ -158,10 +158,12 @@ export default function AIChatMascot() {
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-4xl transition-all duration-300 border-2 ${
-          isOpen ? 'bg-slate-700 border-slate-600' : 'bg-gradient-to-tr from-blue-500 to-purple-500 border-blue-400'
+        <div className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 border-2 overflow-hidden ${
+          isOpen ? 'bg-slate-700 border-slate-600 text-3xl' : 'bg-gradient-to-tr from-blue-500 to-purple-500 border-blue-400 p-0.5'
         }`}>
-          {isOpen ? '✕' : '🐼'}
+          {isOpen ? '✕' : (
+            <img src="/panda.png" alt="Panda" className="w-full h-full rounded-full object-cover" />
+          )}
         </div>
 
         {/* Chấm xanh online */}

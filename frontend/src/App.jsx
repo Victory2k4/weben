@@ -7,6 +7,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import DeckDetail from './pages/DeckDetail'
 import Study from './pages/Study'
+import Quiz from './pages/Quiz'
 import AIChatMascot from './components/AIChatMascot'
 
 function PrivateRoute({ children }) {
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/deck/:id" element={<PrivateRoute><DeckDetail /></PrivateRoute>} />
         <Route path="/study/:id" element={<PrivateRoute><Study /></PrivateRoute>} />
+        <Route path="/quiz/:id" element={<PrivateRoute><Quiz /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <AIChatMascot />

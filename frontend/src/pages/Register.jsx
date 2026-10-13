@@ -32,7 +32,13 @@ export default function Register() {
 
       <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-6xl mb-4 animate-float inline-block">🃏</div>
+          <div className="inline-block mb-3 animate-float">
+            <img
+              src="/panda.png"
+              alt="Panda Mascot"
+              className="w-24 h-24 rounded-full object-cover shadow-2xl shadow-indigo-500/30 border-2 border-indigo-400/40 p-0.5 bg-indigo-950/50"
+            />
+          </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
             FlashCard
           </h1>

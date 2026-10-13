@@ -159,6 +159,12 @@ router.get('/stats', async (req, res) => {
       WHERE s.user_id = $1 ORDER BY s.created_at DESC LIMIT 7
     `, [req.userId]);
 
+    const quizRes = await query(`
+      SELECT q.*, d.title AS deck_title FROM quiz_results q
+      JOIN decks d ON d.id = q.deck_id
+      WHERE q.user_id = $1 ORDER BY q.created_at DESC LIMIT 5
+    `, [req.userId]);
+
     const userRes = await query(
       'SELECT streak FROM users WHERE id = $1',
       [req.userId]
@@ -175,7 +181,58 @@ router.get('/stats', async (req, res) => {
       new: total - (prog.studied || 0),
       streak: userRes.rows[0]?.streak || 0,
       recent_sessions: sessionsRes.rows,
+      recent_quizzes: quizRes.rows,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/progress/quiz – save quiz result & penalize wrong cards
+router.post('/quiz', async (req, res) => {
+  const { deck_id, total_questions, correct_answers, wrong_card_ids = [], quiz_mode = 'mixed', duration_seconds = 0 } = req.body;
+
+  if (!deck_id || total_questions === undefined || correct_answers === undefined) {
+    return res.status(400).json({ error: 'deck_id, total_questions, correct_answers are required' });
+  }
+
+  try {
+    // Save quiz result
+    await query(`
+      INSERT INTO quiz_results (user_id, deck_id, total_questions, correct_answers, wrong_card_ids, quiz_mode, duration_seconds)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [req.userId, deck_id, total_questions, correct_answers, wrong_card_ids, quiz_mode, duration_seconds]);
+
+    // Penalize wrong cards: reduce ease_factor & pull next_review_at closer
+    if (wrong_card_ids.length > 0) {
+      for (const cardId of wrong_card_ids) {
+        const existing = await query(
+          'SELECT * FROM user_card_progress WHERE user_id = $1 AND card_id = $2',
+          [req.userId, cardId]
+        );
+        if (existing.rows[0]) {
+          const newEase = Math.max(1.3, (existing.rows[0].ease_factor || 2.5) - 0.1);
+          await query(`
+            UPDATE user_card_progress
+            SET ease_factor = $1, status = CASE WHEN status = 'mastered' THEN 'learning' ELSE status END,
+                next_review_at = LEAST(next_review_at, NOW() + INTERVAL '1 day')
+            WHERE user_id = $2 AND card_id = $3
+          `, [newEase, req.userId, cardId]);
+        }
+      }
+    }
+
+    // Update streak (same logic as session)
+    const userRes = await query('SELECT last_study_date, streak FROM users WHERE id = $1', [req.userId]);
+    const user = userRes.rows[0];
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    let newStreak = 1;
+    if (user.last_study_date === yesterday) newStreak = (user.streak || 0) + 1;
+    else if (user.last_study_date === today) newStreak = user.streak || 1;
+    await query('UPDATE users SET streak = $1, last_study_date = $2 WHERE id = $3', [newStreak, today, req.userId]);
+
+    res.json({ success: true, streak: newStreak });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

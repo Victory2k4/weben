@@ -228,8 +228,52 @@ export default function Dashboard() {
                 onClick={() => navigate(`/deck/${deck.id}`)}
                 onDelete={e => handleDelete(deck.id, e)}
                 onStudy={e => { e.stopPropagation(); navigate(`/study/${deck.id}`) }}
+                onQuiz={e => { e.stopPropagation(); navigate(`/quiz/${deck.id}`) }}
               />
             ))}
+          </div>
+        )}
+
+        {/* Recent Quizzes section */}
+        {stats?.recent_quizzes && stats.recent_quizzes.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <span>📝</span> Bài kiểm tra gần đây
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {stats.recent_quizzes.map((q) => {
+                const pct = Math.round((q.correct_answers / q.total_questions) * 100) || 0
+                const isGood = pct >= 80
+                const isMid = pct >= 50
+                const colorCls = isGood ? 'text-green-400 bg-green-500/10 border-green-500/20' : isMid ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'
+                const modeLabel = q.quiz_mode === 'mcq' ? 'Trắc nghiệm' : q.quiz_mode === 'fill' ? 'Điền từ' : 'Trộn'
+
+                return (
+                  <div key={q.id} className="card-glass p-4 rounded-2xl flex items-center justify-between gap-3 hover:bg-white/8 transition-all">
+                    <div className="min-w-0">
+                      <h4 className="font-medium text-white text-sm truncate">{q.deck_title}</h4>
+                      <div className="flex items-center gap-2 text-xs text-white/40 mt-1">
+                        <span className="bg-white/5 px-2 py-0.5 rounded border border-white/10">{modeLabel}</span>
+                        <span>•</span>
+                        <span>{new Date(q.created_at).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${colorCls}`}>
+                        {q.correct_answers}/{q.total_questions} ({pct}%)
+                      </div>
+                      <button
+                        onClick={() => navigate(`/quiz/${q.deck_id}`)}
+                        title="Làm lại bài kiểm tra"
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-400/40 text-white/50 hover:text-indigo-300 text-xs transition-colors"
+                      >
+                        🔄
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

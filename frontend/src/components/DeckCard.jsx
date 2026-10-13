@@ -1,7 +1,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 
-export default function DeckCard({ deck, index, onClick, onDelete, onStudy }) {
+export default function DeckCard({ deck, index, onClick, onDelete, onStudy, onQuiz }) {
   const mastered = deck.mastered_count || 0
   const total = deck.card_count || 0
   const pct = total > 0 ? Math.round((mastered / total) * 100) : 0
@@ -48,13 +48,21 @@ export default function DeckCard({ deck, index, onClick, onDelete, onStudy }) {
         </div>
       )}
 
-      <button onClick={onStudy}
-        className="mt-4 w-full py-2 rounded-xl text-sm font-semibold transition-all active:scale-95"
-        style={{ background: deck.color + '22', color: deck.color, border: `1px solid ${deck.color}44` }}
-        onMouseOver={e => e.currentTarget.style.background = deck.color + '44'}
-        onMouseOut={e => e.currentTarget.style.background = deck.color + '22'}>
-        ▶ Học ngay
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button onClick={onStudy}
+          className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95"
+          style={{ background: deck.color + '22', color: deck.color, border: `1px solid ${deck.color}44` }}
+          onMouseOver={e => e.currentTarget.style.background = deck.color + '44'}
+          onMouseOut={e => e.currentTarget.style.background = deck.color + '22'}>
+          ▶ Học ngay
+        </button>
+        <button onClick={onQuiz}
+          disabled={total < 2}
+          title={total < 2 ? 'Cần ít nhất 2 từ để kiểm tra' : 'Kiểm tra trắc nghiệm & điền từ'}
+          className="px-3.5 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+          📝
+        </button>
+      </div>
     </motion.div>
   )
 }

@@ -11,9 +11,15 @@ export default function Navbar() {
   return (
     <nav className="border-b border-white/5 sticky top-0 z-40 bg-gray-950/80 backdrop-blur-xl">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-bold text-white">
-          <span className="text-2xl">🃏</span>
-          <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">FlashCard</span>
+        <Link to="/" className="flex items-center gap-2.5 font-bold text-white group">
+          <img
+            src="/panda.png"
+            alt="Panda"
+            className="w-8 h-8 rounded-full object-cover border border-indigo-400/30 group-hover:scale-110 transition-transform shadow-md shadow-indigo-500/20"
+          />
+          <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent text-lg font-bold">
+            FlashCard
+          </span>
         </Link>
 
         {user && (

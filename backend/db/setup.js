@@ -74,6 +74,18 @@ async function setupDatabase() {
       duration_seconds INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS quiz_results (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      deck_id INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+      total_questions INTEGER NOT NULL,
+      correct_answers INTEGER NOT NULL,
+      wrong_card_ids INTEGER[] DEFAULT '{}',
+      quiz_mode TEXT DEFAULT 'mixed',
+      duration_seconds INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   console.log('✅ PostgreSQL schema ready');
 }

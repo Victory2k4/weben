@@ -1,9 +1,22 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../api/client'
 import Navbar from '../components/Navbar'
+import { getCachedAudio, setCachedAudio } from '../utils/audioCache'
+
+// ── SVG loa ──────────────────────────────────────────────────────────
+function SpeakerIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  )
+}
 
 const STATUS_BADGE = {
   new:      { label: 'Mới', cls: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
@@ -11,7 +24,7 @@ const STATUS_BADGE = {
   mastered: { label: 'Đã thuộc', cls: 'bg-green-500/20 text-green-300 border-green-500/30' },
 }
 
-function CardRow({ card, onEdit, onDelete }) {
+function CardRow({ card, onEdit, onDelete, onSpeakUK, onSpeakUS }) {
   const badge = STATUS_BADGE[card.status || 'new']
   return (
     <motion.div layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -22,6 +35,25 @@ function CardRow({ card, onEdit, onDelete }) {
           <span className="font-semibold text-white">{card.term}</span>
           {card.phonetic && <span className="text-white/40 text-sm">{card.phonetic}</span>}
           {card.part_of_speech && <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white/50">{card.part_of_speech}</span>}
+          {/* Pronunciation buttons UK/US */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onSpeakUK(card.term)}
+              className="group/sp flex items-center gap-1 px-2 py-1 bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-400/40 rounded-full transition-all active:scale-90"
+              title="Phát âm Anh-Anh (nhấn đúp để đọc chậm)"
+            >
+              <span className="text-white/50 group-hover/sp:text-indigo-300 transition-colors"><SpeakerIcon /></span>
+              <span className="text-[10px] text-white/40 group-hover/sp:text-indigo-300 font-semibold transition-colors">UK</span>
+            </button>
+            <button
+              onClick={() => onSpeakUS(card.term)}
+              className="group/sp flex items-center gap-1 px-2 py-1 bg-white/5 hover:bg-violet-500/20 border border-white/10 hover:border-violet-400/40 rounded-full transition-all active:scale-90"
+              title="Phát âm Anh-Mỹ (nhấn đúp để đọc chậm)"
+            >
+              <span className="text-white/50 group-hover/sp:text-violet-300 transition-colors"><SpeakerIcon /></span>
+              <span className="text-[10px] text-white/40 group-hover/sp:text-violet-300 font-semibold transition-colors">US</span>
+            </button>
+          </div>
           <span className={`text-xs border px-2 py-0.5 rounded-full ml-auto ${badge.cls}`}>{badge.label}</span>
         </div>
         <p className="text-indigo-300 mt-1">{card.definition}</p>
@@ -50,6 +82,84 @@ export default function DeckDetail() {
   const [search, setSearch] = useState('')
   const [phoneticStatus, setPhoneticStatus] = useState('idle') // idle | loading | found | notfound
   const phoneticDebounce = useRef(null)
+
+  // ── Pronunciation state ────────────────────────────────────────────
+  const audioCache = useRef({})       // { word: { uk: url, us: url } }
+  const currentAudio = useRef(null)
+  const lastClickTime = useRef({ uk: 0, us: 0 })
+
+  // ── Helpers: dừng mọi audio đang phát ──────────────────────────────
+  const stopAll = () => {
+    if (currentAudio.current) {
+      currentAudio.current.pause()
+      currentAudio.current.currentTime = 0
+    }
+    window.speechSynthesis.cancel()
+  }
+
+  // ── Phát bằng Web Speech API (fallback) ────────────────────────────
+  const speakWithSynthesis = (text, accent = 'us', slow = false) => {
+    if (!('speechSynthesis' in window)) return
+    stopAll()
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = accent === 'uk' ? 'en-GB' : 'en-US'
+    u.rate = slow ? 0.35 : 0.85
+    window.speechSynthesis.speak(u)
+  }
+
+  // ── Fetch & cache UK/US audio URLs từ Free Dictionary API ─────────
+  const fetchAudioUrls = async (word) => {
+    if (audioCache.current[word]) return audioCache.current[word]
+    const cached = await getCachedAudio(word)
+    if (cached && (cached.uk || cached.us)) {
+      const result = { uk: cached.uk, us: cached.us }
+      audioCache.current[word] = result
+      return result
+    }
+    try {
+      const res = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.trim())}`
+      )
+      if (!res.ok) throw new Error('not found')
+      const data = await res.json()
+      const phonetics = data[0]?.phonetics || []
+      let uk = phonetics.find(p => p.audio && p.audio.includes('-uk'))?.audio || ''
+      let us = phonetics.find(p => p.audio && p.audio.includes('-us'))?.audio || ''
+      const any = phonetics.find(p => p.audio)?.audio || ''
+      if (!uk) uk = any
+      if (!us) us = any
+      const result = { uk, us }
+      audioCache.current[word] = result
+      if (uk || us) setCachedAudio(word, result)
+      return result
+    } catch {
+      audioCache.current[word] = { uk: '', us: '' }
+      return { uk: '', us: '' }
+    }
+  }
+
+  // ── Phát âm: SpeechSynthesis tức thì + tải audio ngầm ─────────────
+  const playAudio = async (word, accent) => {
+    const now = Date.now()
+    const DOUBLE_CLICK_MS = 350
+    const isDoubleClick = (now - lastClickTime.current[accent]) < DOUBLE_CLICK_MS
+    lastClickTime.current[accent] = now
+    const slow = isDoubleClick
+    stopAll()
+    const memoryCached = audioCache.current[word]
+    if (memoryCached) {
+      const url = accent === 'uk' ? memoryCached.uk : memoryCached.us
+      if (url) {
+        const audio = new Audio(url)
+        audio.playbackRate = slow ? 0.65 : 1.0
+        currentAudio.current = audio
+        audio.play().catch(() => speakWithSynthesis(word, accent, slow))
+        return
+      }
+    }
+    speakWithSynthesis(word, accent, slow)
+    fetchAudioUrls(word).catch(() => {})
+  }
 
   const load = async () => {
     const { data } = await api.get(`/decks/${id}`)
@@ -156,10 +266,17 @@ export default function DeckDetail() {
               <span>{deck.cards?.filter(c => c.status === 'mastered').length || 0} đã thuộc</span>
             </div>
           </div>
-          <button onClick={() => navigate(`/study/${id}`)}
-            className="btn-primary flex items-center gap-2 shrink-0">
-            ▶ Học ngay
-          </button>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => navigate(`/quiz/${id}`)}
+              disabled={!deck.cards || deck.cards.length < 2}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              📝 Kiểm tra
+            </button>
+            <button onClick={() => navigate(`/study/${id}`)}
+              className="btn-primary flex items-center gap-2">
+              ▶ Học ngay
+            </button>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -173,7 +290,7 @@ export default function DeckDetail() {
           <AnimatePresence>
             {filtered.length === 0 && <div className="text-center py-12 text-white/30"><div className="text-4xl mb-2">📭</div><p>Chưa có từ nào. Thêm từ đầu tiên!</p></div>}
             {filtered.map(card => (
-              <CardRow key={card.id} card={card} onEdit={openEdit} onDelete={handleDelete} />
+              <CardRow key={card.id} card={card} onEdit={openEdit} onDelete={handleDelete} onSpeakUK={(word) => playAudio(word, 'uk')} onSpeakUS={(word) => playAudio(word, 'us')} />
             ))}
           </AnimatePresence>
         </div>
