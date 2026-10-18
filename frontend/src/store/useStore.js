@@ -65,6 +65,9 @@ const useStore = create((set, get) => ({
     const { data } = await api.post('/progress/session', payload)
     return data
   },
+
+  // ── Admin helpers ──
+  isAdmin: () => get().user?.role === 'admin',
 }))
 
 export default useStore

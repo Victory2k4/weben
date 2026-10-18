@@ -9,6 +9,9 @@ import DeckDetail from './pages/DeckDetail'
 import Study from './pages/Study'
 import Quiz from './pages/Quiz'
 import AIChatMascot from './components/AIChatMascot'
+import AdminRoute from './components/AdminRoute'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminUsers from './pages/admin/AdminUsers'
 
 function PrivateRoute({ children }) {
   const token = useStore(s => s.token)
@@ -31,12 +34,20 @@ export default function App() {
         }}
       />
       <Routes>
+        {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* User routes */}
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/deck/:id" element={<PrivateRoute><DeckDetail /></PrivateRoute>} />
         <Route path="/study/:id" element={<PrivateRoute><Study /></PrivateRoute>} />
         <Route path="/quiz/:id" element={<PrivateRoute><Quiz /></PrivateRoute>} />
+
+        {/* Admin routes */}
+        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <AIChatMascot />

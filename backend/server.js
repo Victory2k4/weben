@@ -28,6 +28,7 @@ app.use('/api/decks', require('./routes/decks'));
 app.use('/api/cards', require('./routes/cards'));
 app.use('/api/progress', require('./routes/progress'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));

@@ -6,6 +6,26 @@
 
 @layer base {
   body { @apply bg-gray-950 text-white antialiased; }
+  
+  /* Modern sleek dark scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
 }
 
 @layer components {
@@ -24,6 +44,10 @@
     @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white 
            placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500 
            focus:border-transparent transition-all;
+  }
+  select.input-field option {
+    background-color: #111827;
+    color: #ffffff;
   }
 }
 

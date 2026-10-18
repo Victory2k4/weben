@@ -22,15 +22,15 @@ router.post('/register', async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 10);
     const result = await query(
-      'INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING id',
+      'INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING id, role',
       [email, password_hash, full_name]
     );
 
-    const userId = result.rows[0].id;
-    const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
+    const user = result.rows[0];
+    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
     res.status(201).json({
       token,
-      user: { id: userId, email, full_name }
+      user: { id: user.id, email, full_name, role: user.role }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -50,10 +50,10 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
     res.json({
       token,
-      user: { id: user.id, email: user.email, full_name: user.full_name, streak: user.streak }
+      user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role, streak: user.streak }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -64,7 +64,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, email, full_name, streak, last_study_date, created_at FROM users WHERE id = $1',
+      'SELECT id, email, full_name, role, streak, last_study_date, created_at FROM users WHERE id = $1',
       [req.userId]
     );
     const user = result.rows[0];

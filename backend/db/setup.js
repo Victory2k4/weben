@@ -25,10 +25,21 @@ async function setupDatabase() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       full_name TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
       streak INTEGER DEFAULT 0,
       last_study_date TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Migration: thêm cột role nếu bảng users đã tồn tại nhưng chưa có cột role
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'role'
+      ) THEN
+        ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS decks (
       id SERIAL PRIMARY KEY,
